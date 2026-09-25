@@ -17,7 +17,7 @@ typedef FalconetAppBuilder =
       List<RouteBase> routes,
     );
 
-/// Runs [Bootstrap.setup], [Falconet.init], then [app] with [Module.routes].
+/// Runs [Falconet.init], [Bootstrap.setup], then [app] with [Module.routes].
 ///
 /// Splash is a standalone [MaterialApp] (`home`) until that work finishes.
 class FalconetApp extends StatefulWidget {
@@ -49,7 +49,7 @@ class FalconetApp extends StatefulWidget {
   final Widget splash;
 
   /// Optional native splash bridge from the app layer. When set, preserves the
-  /// OS splash until Flutter paints the first splash frame, then removes it.
+  /// OS splash until bootstrap finishes and the real app paints its first frame.
   final NativeSplashAdapter? nativeSplash;
 
   @override
@@ -63,21 +63,20 @@ class _FalconetAppState extends State<FalconetApp> {
   @override
   void initState() {
     super.initState();
-    if (widget.nativeSplash case final adapter?) {
-      adapter.preserve();
-      WidgetsBinding.instance.addPostFrameCallback((_) => adapter.remove());
-    }
+    widget.nativeSplash?.preserve();
     unawaited(_start());
   }
 
   Future<void> _start() async {
+    // Module exports (e.g. MeCubit) before bootstrap so setup can resolve them.
+    Falconet.init(widget.module);
+
     if (widget.bootstrap case final bootstrap?) {
       final injector = Injector(GetIt.instance);
       await bootstrap.setup(injector);
       await injector.allReady();
     }
 
-    Falconet.init(widget.module);
     _routes = widget.module.routes(
       navigatorKey: widget.navigatorKey,
       parentNavigatorKey: widget.parentNavigatorKey,
@@ -85,6 +84,10 @@ class _FalconetAppState extends State<FalconetApp> {
 
     if (!mounted) return;
     setState(() => _ready = true);
+    // Keep OS splash over the Dart stand-in until the real app paints.
+    if (widget.nativeSplash case final adapter?) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => adapter.remove());
+    }
   }
 
   @override
