@@ -33,6 +33,7 @@ void main() {
                 context.path = '/rewritten';
               },
             ),
+            dio: dio,
             clientOptions: const HttpClientOptions(),
           ),
         );
@@ -51,6 +52,7 @@ void main() {
                 throw StateError('blocked');
               },
             ),
+            dio: dio,
             clientOptions: const HttpClientOptions(),
           ),
         );
@@ -75,6 +77,7 @@ void main() {
                 );
               },
             ),
+            dio: dio,
             clientOptions: const HttpClientOptions(),
           ),
         );
@@ -94,6 +97,7 @@ void main() {
                 throw StateError('bad response');
               },
             ),
+            dio: dio,
             clientOptions: const HttpClientOptions(),
           ),
         );
@@ -123,6 +127,7 @@ void main() {
                   context.error = replacement;
                 },
               ),
+              dio: dio,
               clientOptions: const HttpClientOptions(),
             ),
           );
@@ -151,6 +156,7 @@ void main() {
                   context.error = StateError('mapped');
                 },
               ),
+              dio: dio,
               clientOptions: const HttpClientOptions(),
             ),
           );
@@ -179,6 +185,7 @@ void main() {
                   context.error = null;
                 },
               ),
+              dio: dio,
               clientOptions: const HttpClientOptions(),
             ),
           );
@@ -205,6 +212,7 @@ void main() {
                 throw StateError('onError failed');
               },
             ),
+            dio: dio,
             clientOptions: const HttpClientOptions(),
           ),
         );
@@ -219,6 +227,48 @@ void main() {
             ),
           ),
         );
+      });
+
+      test('retries and resolves when retryRequest is set', () async {
+        var fetchCount = 0;
+        dio.httpClientAdapter = _CountingAdapter(
+          onFetch: (options) {
+            fetchCount++;
+            if (fetchCount == 1) {
+              throw DioException(
+                requestOptions: options,
+                response: Response<Map<String, dynamic>>(
+                  requestOptions: options,
+                  statusCode: 401,
+                  data: const {'error': 'unauthorized'},
+                ),
+                type: DioExceptionType.badResponse,
+              );
+            }
+          },
+        );
+        dio.interceptors.add(
+          DioInterceptorAdapter(
+            FakeHttpInterceptor(
+              onErrorCallback: (context) async {
+                context.options = context.options.copyWith(
+                  headers: {
+                    ...?context.options.headers,
+                    'Authorization': 'Bearer refreshed',
+                  },
+                );
+                context.retryRequest = true;
+              },
+            ),
+            dio: dio,
+            clientOptions: const HttpClientOptions(),
+          ),
+        );
+
+        final response = await dio.get<Map<String, dynamic>>('/users');
+
+        expect(fetchCount, 2);
+        expect(response.statusCode, 200);
       });
     });
   });
@@ -288,6 +338,31 @@ class _ThrowingAdapter implements HttpClientAdapter {
     throw DioException(
       requestOptions: options,
       message: message,
+    );
+  }
+}
+
+class _CountingAdapter implements HttpClientAdapter {
+  _CountingAdapter({required this.onFetch});
+
+  final void Function(RequestOptions options) onFetch;
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    onFetch(options);
+    return ResponseBody.fromString(
+      '{}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
     );
   }
 }

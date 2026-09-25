@@ -6,12 +6,18 @@ class HttpInterceptorContext {
     required this.options,
     this.response,
     this.error,
+    this.retryRequest = false,
   });
 
   String path;
   HttpRequestOptions options;
   HttpResponse<dynamic>? response;
   Object? error;
+
+  /// When set in [HttpInterceptor.onError], the Dio adapter re-dispatches
+  /// the (possibly mutated) request via `dio.fetch` and resolves the error
+  /// chain with that response.
+  bool retryRequest;
 }
 
 abstract class HttpInterceptor {

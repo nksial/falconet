@@ -247,6 +247,7 @@ class DioClient implements HttpClient {
   void addInterceptor(HttpInterceptor interceptor) {
     final adapter = DioInterceptorAdapter(
       interceptor,
+      dio: dio,
       clientOptions: clientOptions,
     );
     _adapters[interceptor] = adapter;

@@ -137,6 +137,46 @@ class HttpRequestOptions {
       onReceiveProgress: onReceiveProgress,
     );
   }
+
+  /// Resolves options after an interceptor has mutated a fully composed
+  /// request snapshot.
+  ///
+  /// Unlike [resolve], map fields are treated as authoritative so header
+  /// removals (e.g. clearing `Authorization`) are not overwritten by
+  /// [HttpClientOptions.defaultHeaders].
+  ResolvedHttpRequestOptions resolveInterceptorMutation(
+    HttpClientOptions clientOptions,
+  ) {
+    return ResolvedHttpRequestOptions(
+      headers: Map<String, dynamic>.from(headers ?? const {}),
+      queryParameters: Map<String, dynamic>.from(
+        queryParameters ?? const {},
+      ),
+      connectTimeout: connectTimeout ?? clientOptions.connectTimeout,
+      receiveTimeout: receiveTimeout ?? clientOptions.receiveTimeout,
+      sendTimeout: sendTimeout ?? clientOptions.sendTimeout,
+      transformTimeout: transformTimeout ?? clientOptions.transformTimeout,
+      responseType: responseType ?? clientOptions.responseType,
+      contentType: contentType ?? clientOptions.contentType,
+      validateStatus: validateStatus ?? clientOptions.validateStatus,
+      receiveDataWhenStatusError:
+          receiveDataWhenStatusError ??
+          clientOptions.receiveDataWhenStatusError,
+      followRedirects: followRedirects ?? clientOptions.followRedirects,
+      maxRedirects: maxRedirects ?? clientOptions.maxRedirects,
+      persistentConnection:
+          persistentConnection ?? clientOptions.persistentConnection,
+      listFormat: listFormat ?? clientOptions.listFormat,
+      preserveHeaderCase:
+          preserveHeaderCase ?? clientOptions.preserveHeaderCase,
+      requestEncoder: requestEncoder ?? clientOptions.requestEncoder,
+      responseDecoder: responseDecoder ?? clientOptions.responseDecoder,
+      cancelToken: cancelToken,
+      extra: Map<String, dynamic>.from(extra ?? const {}),
+      onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
+    );
+  }
 }
 
 /// Fully resolved request options after merging client defaults.

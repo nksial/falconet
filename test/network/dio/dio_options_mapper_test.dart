@@ -133,6 +133,22 @@ void main() {
         ListFormat.multiCompatible,
       );
     });
+
+    test('uses contentType field and strips Content-Type from headers', () {
+      final mapped = toDioOptions(
+        resolvedOptions(
+          headers: {
+            Headers.contentTypeHeader: 'text/plain',
+            'X-App': '1',
+          },
+          contentType: Headers.jsonContentType,
+        ),
+      );
+
+      expect(mapped.contentType, Headers.jsonContentType);
+      expect(mapped.headers, isNot(contains(Headers.contentTypeHeader)));
+      expect(mapped.headers?['X-App'], '1');
+    });
   });
 
   group('applyResolvedOptionsToRequest()', () {
@@ -173,6 +189,38 @@ void main() {
       expect(request.cancelToken, same(token.dioToken));
       expect(request.contentType, 'application/json');
     });
+
+    test('does not clear existing contentType when resolved omits it', () {
+      final request = RequestOptions(
+        path: '/login',
+        contentType: Headers.jsonContentType,
+      );
+      final resolved = const HttpRequestOptions().resolve(
+        const HttpClientOptions(),
+      );
+
+      applyResolvedOptionsToRequest(request, resolved);
+
+      expect(request.contentType, Headers.jsonContentType);
+    });
+
+    test('replaces headers so removals take effect', () {
+      final request = RequestOptions(
+        path: '/secure',
+        headers: const {
+          'Authorization': 'Bearer old',
+          'X-App': '1',
+        },
+      );
+      final resolved = resolvedOptions(
+        headers: const {'X-App': '1'},
+      );
+
+      applyResolvedOptionsToRequest(request, resolved);
+
+      expect(request.headers.containsKey('Authorization'), isFalse);
+      expect(request.headers['X-App'], '1');
+    });
   });
 
   group('fromDioRequestOptions()', () {
@@ -197,6 +245,20 @@ void main() {
       expect(mapped.listFormat, HttpListFormat.pipes);
       expect(mapped.cancelToken, isA<DioCancelToken>());
       expect(mapped.extra, containsPair('k', 'v'));
+    });
+
+    test('lifts Content-Type into contentType and drops it from headers', () {
+      final request = RequestOptions(
+        path: '/login',
+        contentType: Headers.jsonContentType,
+        headers: const {'X-App': '1'},
+      );
+
+      final mapped = fromDioRequestOptions(request);
+
+      expect(mapped.contentType, Headers.jsonContentType);
+      expect(mapped.headers, isNot(contains(Headers.contentTypeHeader)));
+      expect(mapped.headers, containsPair('X-App', '1'));
     });
   });
 

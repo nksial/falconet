@@ -16,6 +16,7 @@ HttpClient createHttpClient({
     dio.interceptors.add(
       DioInterceptorAdapter(
         interceptor,
+        dio: dio,
         clientOptions: options,
       ),
     );

@@ -102,6 +102,26 @@ void main() {
         expect(resolved.extra, {'from': 'client'});
       });
     });
+
+    group('resolveInterceptorMutation()', () {
+      test('keeps header removals instead of re-merging defaults', () {
+        const clientOptions = HttpClientOptions(
+          defaultHeaders: {'Authorization': 'Bearer stale', 'X-App': '1'},
+          connectTimeout: Duration(seconds: 9),
+        );
+        const requestOptions = HttpRequestOptions(
+          headers: {'X-App': '1'},
+        );
+
+        final resolved = requestOptions.resolveInterceptorMutation(
+          clientOptions,
+        );
+
+        expect(resolved.headers.containsKey('Authorization'), isFalse);
+        expect(resolved.headers, {'X-App': '1'});
+        expect(resolved.connectTimeout, const Duration(seconds: 9));
+      });
+    });
   });
 
   group('ResolvedHttpRequestOptions', () {

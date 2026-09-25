@@ -5,6 +5,10 @@ import 'package:falconet/src/network/dio/dio_cancel_token.dart';
 BaseOptions toDioBaseOptions({
   required HttpClientOptions options,
 }) {
+  final headers = _headersForDio(
+    options.defaultHeaders,
+    contentType: options.contentType,
+  );
   return BaseOptions(
     baseUrl: options.baseUrl,
     connectTimeout: options.connectTimeout,
@@ -12,7 +16,7 @@ BaseOptions toDioBaseOptions({
     sendTimeout: options.sendTimeout,
     transformTimeout: options.transformTimeout,
     queryParameters: Map<String, dynamic>.from(options.defaultQueryParameters),
-    headers: Map<String, dynamic>.from(options.defaultHeaders),
+    headers: headers,
     responseType: _toDioResponseType(options.responseType),
     contentType: options.contentType,
     validateStatus: options.validateStatus,
@@ -29,8 +33,12 @@ BaseOptions toDioBaseOptions({
 }
 
 Options toDioOptions(ResolvedHttpRequestOptions options) {
+  final headers = _headersForDio(
+    options.headers,
+    contentType: options.contentType,
+  );
   return Options(
-    headers: Map<String, dynamic>.from(options.headers),
+    headers: headers,
     connectTimeout: options.connectTimeout,
     responseType: _toDioResponseType(options.responseType),
     contentType: options.contentType,
@@ -54,15 +62,24 @@ void applyResolvedOptionsToRequest(
   RequestOptions request,
   ResolvedHttpRequestOptions options,
 ) {
-  request.headers.addAll(options.headers);
-  request.queryParameters.addAll(options.queryParameters);
+  // Replace (don't merge) so interceptors can remove headers such as
+  // Authorization. Keep any Dio/Imply content type when resolved options
+  // omit it — assigning null would clear Content-Type and force
+  // application/x-www-form-urlencoded for Map bodies.
+  final previousContentType = request.contentType;
+
+  request.headers
+    ..clear()
+    ..addAll(options.headers);
+  request.queryParameters
+    ..clear()
+    ..addAll(options.queryParameters);
   request
     ..connectTimeout = options.connectTimeout
     ..receiveTimeout = options.receiveTimeout
     ..sendTimeout = options.sendTimeout
     ..transformTimeout = options.transformTimeout
     ..responseType = _toDioResponseType(options.responseType)
-    ..contentType = options.contentType
     ..validateStatus = options.validateStatus
     ..receiveDataWhenStatusError = options.receiveDataWhenStatusError
     ..followRedirects = options.followRedirects
@@ -74,13 +91,23 @@ void applyResolvedOptionsToRequest(
     ..responseDecoder = _toDioResponseDecoder(options.responseDecoder)
     ..cancelToken = toDioCancelToken(options.cancelToken)
     ..onSendProgress = options.onSendProgress
-    ..onReceiveProgress = options.onReceiveProgress
-    ..extra.addAll(options.extra);
+    ..onReceiveProgress = options.onReceiveProgress;
+  request.extra
+    ..clear()
+    ..addAll(options.extra);
+
+  if (options.contentType != null) {
+    request.contentType = options.contentType;
+  } else if (previousContentType != null &&
+      !_hasContentTypeHeader(request.headers)) {
+    request.contentType = previousContentType;
+  }
 }
 
 HttpRequestOptions fromDioRequestOptions(RequestOptions options) {
+  final headers = _headersWithoutContentType(options.headers);
   return HttpRequestOptions(
-    headers: Map<String, dynamic>.from(options.headers),
+    headers: headers,
     queryParameters: Map<String, dynamic>.from(options.queryParameters),
     connectTimeout: options.connectTimeout,
     receiveTimeout: options.receiveTimeout,
@@ -105,8 +132,9 @@ HttpRequestOptions fromDioRequestOptions(RequestOptions options) {
 ResolvedHttpRequestOptions resolvedFromDioRequestOptions(
   RequestOptions options,
 ) {
+  final headers = _headersWithoutContentType(options.headers);
   return ResolvedHttpRequestOptions(
-    headers: Map<String, dynamic>.from(options.headers),
+    headers: headers,
     queryParameters: Map<String, dynamic>.from(options.queryParameters),
     connectTimeout: options.connectTimeout,
     receiveTimeout: options.receiveTimeout,
@@ -127,6 +155,36 @@ ResolvedHttpRequestOptions resolvedFromDioRequestOptions(
     extra: Map<String, dynamic>.from(options.extra),
     onSendProgress: options.onSendProgress,
     onReceiveProgress: options.onReceiveProgress,
+  );
+}
+
+/// Prefer [contentType] as the single source of truth for Dio Options.
+Map<String, dynamic> _headersForDio(
+  Map<String, dynamic> headers, {
+  required String? contentType,
+}) {
+  final mapped = Map<String, dynamic>.from(headers);
+  if (contentType != null) {
+    _removeContentTypeHeader(mapped);
+  }
+  return mapped;
+}
+
+Map<String, dynamic> _headersWithoutContentType(Map<String, dynamic> headers) {
+  final mapped = Map<String, dynamic>.from(headers);
+  _removeContentTypeHeader(mapped);
+  return mapped;
+}
+
+void _removeContentTypeHeader(Map<String, dynamic> headers) {
+  headers.removeWhere(
+    (key, _) => key.toLowerCase() == Headers.contentTypeHeader,
+  );
+}
+
+bool _hasContentTypeHeader(Map<String, dynamic> headers) {
+  return headers.keys.any(
+    (key) => key.toLowerCase() == Headers.contentTypeHeader,
   );
 }
 
